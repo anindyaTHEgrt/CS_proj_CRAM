@@ -4,3 +4,5 @@ flask
 pyotp~=2.9.0
 pyzbar~=0.1.9
 opencv-python~=4.11.0.86
+streamlit~=1.44.0
+pillow~=11.1.0

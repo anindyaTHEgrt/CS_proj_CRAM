@@ -9,7 +9,9 @@ import string
 from datetime import datetime, timedelta
 from email_config import EMAIL_CONFIG
 import pyotp
-
+import streamlit as st
+from PIL import Image
+import read_qr
 
 class OTPSender:
     def __init__(self):
@@ -17,8 +19,7 @@ class OTPSender:
         self.otp_length = 6
 
     def generate_otp(self):
-        """Generate a random OTP"""
-        # Using pyotp for time-based OTP
+
         secret = pyotp.random_base32()
         totp = pyotp.TOTP(secret, digits=self.otp_length, interval=self.otp_expiry_minutes * 60)
         otp = totp.now()
@@ -26,7 +27,7 @@ class OTPSender:
         return otp, datetime.now() + timedelta(minutes=self.otp_expiry_minutes)
 
     def generate_qr_code(self, otp, filename='otp_qr.png'):
-        """Generate QR code with the OTP"""
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -38,15 +39,14 @@ class OTPSender:
 
         img = qr.make_image(fill_color="black", back_color="white")
         img.save(filename)
-        return filename
+        return filename, img
 
     def send_otp_email(self, recipient_email):
-        """Send OTP via email with QR code"""
-        # Generate OTP
+
         otp, expiry_time = self.generate_otp()
 
         # Generate QR code
-        qr_filename = self.generate_qr_code(otp)
+        qr_filename, img = self.generate_qr_code(otp)
 
         # Create email message
         msg = MIMEMultipart()
@@ -75,7 +75,7 @@ class OTPSender:
                 server.send_message(msg)
 
             print(f"OTP sent to {recipient_email}")
-            return True, "OTP sent successfully"
+            return True, "OTP sent successfully", otp
         except Exception as e:
             print(f"Failed to send OTP: {e}")
             return False, str(e)
@@ -85,11 +85,27 @@ class OTPSender:
                 os.remove(qr_filename)
 
 
-if __name__ == "__main__":
-    sender = OTPSender()
-    email = input("Enter recipient email: ")
-    success, message = sender.send_otp_email(email)
+st.header('OTP Sender')
+rec_email = st.text_input("Enter the email of the recipient.")
+sender = OTPSender()
+if st.button('Send OTP'):
+
+
+    with st.spinner("Sending OTP ..."):
+        success, message, otp = sender.send_otp_email(rec_email)
     if success:
-        print("OTP sent successfully!")
+        st.write(message)
+        st.write(f"OTP is: {otp}")
     else:
-        print(f"Failed to send OTP: {message}")
+        st.write(f"Failed to send OTP: {message}")
+
+uploaded_file = st.file_uploader("Upload QR", type=["png", "jpg", "jpeg"])
+image = None
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+
+if image is not None:
+    st.image(image, caption="Selected QR", use_container_width=True)
+    if st.button('Reveal OTP'):
+        qr_data= read_qr.read_qr_from_image(image)
+        st.write(qr_data)
